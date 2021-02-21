@@ -1,0 +1,164 @@
+# Work done by
+# Valera Gorevoy (50 %)
+# Bricheev Dmitry (50 %)
+
+from textblob import TextBlob
+from dostoevsky.tokenization import RegexTokenizer
+from dostoevsky.models import FastTextSocialNetworkModel
+
+
+def average_sentence_length(text: str):
+    '''
+    Counts average number of words length of given text
+    :param text: analyzed text
+    :return: average sentence length of given text
+    '''
+    sentences = text.replace('!', '.').replace('?', '.').strip('.').split('.')
+    print('Предложений:', len(sentences))
+    ASL = 0
+    for sentence in sentences:
+        ASL += len(sentence.split())
+    ASL = ASL / len(sentences)
+    return ASL
+
+
+def average_number_of_syllables_per_word(text: str):
+    '''
+    Counts average number of syllables per word
+    :param text: analyzed text
+    :return: average number of syllables per word
+    '''
+    number_of_words = len(text.split(' '))
+    print('Слов:', number_of_words)
+    ru_vowels = 'аеёиоуыэюя'
+    en_vowels = 'aeiouy'
+    ASW = 0
+    if is_english(text)[0]:
+        for c in text:
+            if c in en_vowels:
+                ASW += 1
+    elif is_russian(text)[0]:
+        for c in text:
+            if c in ru_vowels:
+                ASW += 1
+    else:
+        raise ValueError(f'If this text is english, I don\'t know {is_english(text)[1]} symbol.\n'
+                         f'If this text is russian, I don\'t know {is_russian(text)[1]} symbol.')
+    print('Слогов:', ASW)
+    ASW = ASW / number_of_words
+    return ASW
+
+
+def flesch_index(text: str):
+    '''
+    Calculates Flesch reading-ease index.
+    :param text: analyzed text
+    :return: Flesch reading-ease index
+    '''
+    ASL = average_sentence_length(text)
+    ASW = average_number_of_syllables_per_word(text)
+    print('Средняя длина предложения в словах:', ASL)
+    print('Средняя длина слова в слогах:', ASW)
+    if is_english(text):
+        return 206.835 - (1.015 * ASL) - (84.6 * ASW)
+    elif is_russian(text):
+        return 206.835 - (1.3 * ASL) - (60.1 * ASW)
+    else:
+        raise ValueError(f'If this text is english, I don\'t know {is_english(text)[1]} symbol.\n'
+                         f'If this text is russian, I don\'t know {is_russian(text)[1]} symbol.')
+
+
+def sentiment_analysis(text: str):
+    '''
+    Analyses text polarity and objectivity. Is not able to analyze the objectivity of Russian texts.
+    :param text: analyzed text
+    :return: tuple (polarity, objectivity). For russian texts objectivity is None.
+    '''
+    negative_threshold = -0.4
+    positive_threshold = 0.4
+    if is_english(text)[0]:
+        polarity, subjectivity = TextBlob(text).sentiment
+        objectivity = f'{1 - subjectivity:.0%}'
+        if polarity < negative_threshold:
+            return 'negative', objectivity
+        elif polarity > positive_threshold:
+            return 'positive', objectivity
+        else:
+            return 'neutral', objectivity
+    elif is_russian(text)[0]:
+        tokenizer = RegexTokenizer()
+        model = FastTextSocialNetworkModel(tokenizer=tokenizer)
+
+        result = model.predict([text], k=1)
+        polarity = list(result[0].keys())[0]
+        if polarity == 'skip':
+            polarity = 'I don\'t know'
+        elif polarity == 'speech':
+            polarity = 'neutral'
+        return polarity, None
+    else:
+        raise ValueError(f'If this text is english, I don\'t know {is_english(text)[1]} symbol.\n'
+                         f'If this text is russian, I don\'t know {is_russian(text)[1]} symbol.')
+
+
+def is_english(text: str):
+    '''
+
+    :param text: analyzed text
+    :return: True if all symbols of text is russian letters or punctuation marks, otherwise False
+    '''
+    for c in text:
+        if not(ord('A') <= ord(c) <= ord('Z') or
+               ord('a') <= ord(c) <= ord('z') or
+               c in '.,;:!?"\'()[]—-_ 1234567890'):
+            return False, c
+    return True, None
+
+
+def is_russian(text: str):
+    '''
+
+    :param text: analyzed text
+    :return: True if all symbols of text is russian letters or punctuation marks, otherwise False
+    '''
+    for c in text:
+        if not(ord('А') <= ord(c) <= ord('Я') or
+               ord('а') <= ord(c) <= ord('я') or
+               c in '.,;:!?"\'()[]—-_ 1234567890'):
+            return False, c
+    return True, None
+
+
+if __name__ == '__main__':
+    neutral = 'Wikipedia is a free, multilingual open- collaborative online encyclopedia created and maintained by ' \
+              'a community of volunteer editors using a wiki-based editing system. It is one of the 15 most popular ' \
+              'websites as ranked by Alexa, as of January 2021 and The Economist newspaper placed it as the ' \
+              '"13th-most-visited place on the web". Featuring no advertisements, it is hosted by the Wikimedia ' \
+              'Foundation, an American non-profit organization funded primarily through donations.'
+    positive = 'I\'m glad to see you, Steve!'
+    negative = 'Что за мир? Сколько идиотов вокруг, как весело от них!'
+
+    print('Neutral text:')
+    FRE = flesch_index(neutral)
+    polarity, objectivity = sentiment_analysis(neutral)
+    print('Flesch index:', FRE)
+    print('polarity:', polarity)
+    print('objectivity:', objectivity)
+    print()
+
+    print('Positive text:')
+    FRE = flesch_index(positive)
+    polarity, objectivity = sentiment_analysis(positive)
+    print('Flesch index:', FRE)
+    print('polarity:', polarity)
+    print('objectivity:', objectivity)
+    print()
+
+    print('Negative text:')
+    FRE = flesch_index(negative)
+    polarity, objectivity = sentiment_analysis(negative)
+    print('Flesch index:', FRE)
+    print('polarity:', polarity)
+    print('objectivity:', objectivity)
+
+
